@@ -7,18 +7,29 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/coreos/pkg/flagutil"
 	"github.com/dghubble/go-twitter/twitter"
 	"github.com/dghubble/oauth1"
 )
 
+func printTweet(tweets, name, id chan string) {
+	for i := 0; i < 10; i++ {
+		fmt.Println(<-tweets)
+		fmt.Println(<-name)
+		fmt.Println(<-id)
+	}
+}
 func main() {
 	flags := flag.NewFlagSet("user-auth", flag.ExitOnError)
 	consumerKey := flags.String("consumer-key", "", "Twitter Consumer Key")
 	consumerSecret := flags.String("consumer-secret", "", "Twitter Consumer Secret")
 	accessToken := flags.String("access-token", "", "Twitter Access Token")
 	accessSecret := flags.String("access-secret", "", "Twitter Access Secret")
+	tweetText := make(chan string, 10)
+	tweetName := make(chan string, 10)
+	tweetID := make(chan string, 10)
 	flags.Parse(os.Args[1:])
 	flagutil.SetFlagsFromEnv(flags, "TWITTER")
 
@@ -37,8 +48,14 @@ func main() {
 	// Convenience Demux demultiplexed stream messages
 	demux := twitter.NewSwitchDemux()
 	demux.Tweet = func(tweet *twitter.Tweet) {
-		fmt.Println(tweet.Text)
+		//fmt.Println(tweet.Text)
+		tweetText <- tweet.Text
+		tweetName <- tweet.User.ScreenName
+		tweetID <- tweet.User.Name
+		time.Sleep(500 * time.Millisecond)
 	}
+
+	go printTweet(tweetText, tweetName, tweetID)
 	demux.DM = func(dm *twitter.DirectMessage) {
 		fmt.Println(dm.SenderID)
 	}
@@ -50,8 +67,9 @@ func main() {
 
 	// FILTER
 	filterParams := &twitter.StreamFilterParams{
-		Track:         []string{"maps"},
+		Track:         []string{"bengaluru", "bangalore", "blr"},
 		StallWarnings: twitter.Bool(true),
+		Language:      []string{"en"},
 	}
 	stream, err := client.Streams.Filter(filterParams)
 	if err != nil {
