@@ -27,10 +27,12 @@ func main() {
 	consumerSecret := flags.String("consumer-secret", "", "Twitter Consumer Secret")
 	accessToken := flags.String("access-token", "", "Twitter Access Token")
 	accessSecret := flags.String("access-secret", "", "Twitter Access Secret")
+
 	tweetText := make(chan string, 10)
 	tweetName := make(chan string, 10)
 	tweetID := make(chan string, 10)
 	flags.Parse(os.Args[1:])
+
 	flagutil.SetFlagsFromEnv(flags, "TWITTER")
 
 	if *consumerKey == "" || *consumerSecret == "" || *accessToken == "" || *accessSecret == "" {
@@ -71,9 +73,26 @@ func main() {
 		StallWarnings: twitter.Bool(true),
 		Language:      []string{"en"},
 	}
+
+	searchParams := &twitter.SearchTweetParams{
+		Query:      "#golang",
+		Count:      5,
+		ResultType: "recent",
+		Lang:       "en",
+	}
 	stream, err := client.Streams.Filter(filterParams)
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	searchResult, _, _ := client.Search.Tweets(searchParams)
+
+	for _, tweet := range searchResult.Statuses {
+		tweetID := tweet.ID
+		a, b, c := client.Statuses.Retweet(tweetID, &twitter.StatusRetweetParams{})
+		fmt.Println(a, b, c)
+
+		fmt.Printf("RETWEETED: %+v\n", tweet.Text)
 	}
 
 	// USER (quick test: auth'd user likes a tweet -> event)
@@ -97,6 +116,7 @@ func main() {
 	// }
 
 	// Receive messages until stopped or stream quits
+
 	go demux.HandleChan(stream.Messages)
 
 	// Wait for SIGINT and SIGTERM (HIT CTRL-C)
